@@ -1,0 +1,150 @@
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties: {}
+    
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+    
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref VPC
+    
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: false
+      VpcId: !Ref VPC
+      
+
+  PubRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+    
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PubRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      
+    
+
+
+  PubSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PubRouteTable
+      SubnetId: !Ref PublicSubnet
+    
+  
+  PubSecuritygrp:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Public Security groupG
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+    
+  
+
+  PublicEC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: "ami-01cc34ab2709337aa"
+      KeyName: "vpctest"
+      InstanceType: "t2.micro"
+      NetworkInterfaces:
+        - SubnetId: !Ref PublicSubnet
+          DeviceIndex: '0'
+          AssociatePublicIpAddress: "true"
+          GroupSet:
+            - !Ref PubSecuritygrp
+        
+    DependsOn:
+      - PubRouteTable
+
+  NatGatewayEIP:
+    Type: AWS::EC2::EIP
+    DependsOn: VPCGatewayAttachment
+
+  NATGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      AllocationId: !GetAtt NatGatewayEIP.AllocationId
+
+
+  
+  PriSecuritygrp:
+    Type: AWS::EC2::SecurityGroup
+    Properties: 
+      GroupDescription: Private SecurityGroup
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+
+
+  PriRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+     
+
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PriRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway
+
+  PriSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet
+      RouteTableId: !Ref PriRouteTable
+
+  
+
+
+  PrivateEC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: "ami-01cc34ab2709337aa"
+      InstanceType: "t2.micro"
+      KeyName: "vpctest"
+      NetworkInterfaces:
+        - SubnetId: !Ref PrivateSubnet
+          DeviceIndex: '0'
+          GroupSet:
+          - !Ref PriSecuritygrp        
+    DependsOn:
+      - PriRouteTable
