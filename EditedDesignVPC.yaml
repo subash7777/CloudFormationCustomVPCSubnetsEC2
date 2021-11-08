@@ -1,26 +1,31 @@
 Resources:
+  #Creating a VPC
   VPC:
     Type: AWS::EC2::VPC
     Properties:
       CidrBlock: 10.0.0.0/16
-
+  
+  # Creating an Internet Gatewayy
   InternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties: {}
-    
+  
+  # Attaching Gateway and VPC
   VPCGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
       InternetGatewayId: !Ref InternetGateway
       VpcId: !Ref VPC
-    
+  
+  # Public Subnet
   PublicSubnet:
     Type: AWS::EC2::Subnet
     Properties:
       CidrBlock: 10.0.0.0/24
       MapPublicIpOnLaunch: true
       VpcId: !Ref VPC
-    
+  
+  # Private Subnet
   PrivateSubnet:
     Type: AWS::EC2::Subnet
     Properties:
@@ -28,12 +33,13 @@ Resources:
       MapPublicIpOnLaunch: false
       VpcId: !Ref VPC
       
-
+  # Public Route Table
   PubRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref VPC
-    
+  
+  # Public Route
   PublicRoute:
     Type: AWS::EC2::Route
     DependsOn: VPCGatewayAttachment
@@ -41,17 +47,15 @@ Resources:
       RouteTableId: !Ref PubRouteTable
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref InternetGateway
-      
-    
-
-
+  
+  # Associating Route Table with Public Subnet
   PubSubnetRouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       RouteTableId: !Ref PubRouteTable
       SubnetId: !Ref PublicSubnet
-    
   
+  # Defining Public Security Group
   PubSecuritygrp:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -66,9 +70,8 @@ Resources:
           FromPort: 22
           ToPort: 22
           CidrIp: 0.0.0.0/0
-    
   
-
+  # Public EC2 in Public Subnet, associating Public Security Group and defining dependancy with Public Route Table 
   PublicEC2:
     Type: AWS::EC2::Instance
     Properties:
@@ -84,7 +87,8 @@ Resources:
         
     DependsOn:
       - PubRouteTable
-
+  
+  # NAT Gateway for EC2 in Private subnet to access connectivity. Creating Elastic IP and attaching it to NAT Gateway 
   NatGatewayEIP:
     Type: AWS::EC2::EIP
     DependsOn: VPCGatewayAttachment
@@ -94,9 +98,8 @@ Resources:
     Properties:
       SubnetId: !Ref PublicSubnet
       AllocationId: !GetAtt NatGatewayEIP.AllocationId
-
-
   
+  # Private Security Group
   PriSecuritygrp:
     Type: AWS::EC2::SecurityGroup
     Properties: 
@@ -112,13 +115,13 @@ Resources:
           ToPort: 22
           CidrIp: 0.0.0.0/0
 
-
+  #Private Route Table
   PriRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref VPC
-     
-
+  
+  # Private Route  
   PrivateRoute:
     Type: AWS::EC2::Route
     Properties:
@@ -126,15 +129,14 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       NatGatewayId: !Ref NATGateway
 
+  # Associating Route Table with Private Subnet
   PriSubnetRouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref PrivateSubnet
       RouteTableId: !Ref PriRouteTable
 
-  
-
-
+  #Private EC2 in Private Subnet, associating Private Security Group and defining dependancy with Private Route Table 
   PrivateEC2:
     Type: AWS::EC2::Instance
     Properties:
